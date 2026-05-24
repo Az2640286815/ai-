@@ -2,23 +2,33 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>Volcengine Ark API Proxy</title>
+    <title>Volcengine Ark Proxy</title>
 </head>
 <body>
     <script>
+        // 把这里换成你的火山平台API密钥
         const API_KEY = "ark-5be4a38d-5179-4e80-9e4a-fa25741f068f-cbb76";
         const API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 
+        // 处理GET请求，用JSONP绕过限制
         self.addEventListener('fetch', (event) => {
             const request = event.request;
-            if (request.method === 'POST' && new URL(request.url).pathname === '/') {
-                event.respondWith(handleRequest(request));
+            if (request.method === 'GET' && new URL(request.url).pathname === '/') {
+                event.respondWith(handleGetRequest(request));
             }
         });
 
-        async function handleRequest(request) {
+        async function handleGetRequest(request) {
             try {
-                const body = await request.json();
+                const url = new URL(request.url);
+                const bodyStr = url.searchParams.get('body');
+                const callback = url.searchParams.get('callback');
+
+                if (!bodyStr || !callback) {
+                    return new Response("Missing parameters", { status: 400 });
+                }
+
+                const body = JSON.parse(decodeURIComponent(bodyStr));
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
@@ -27,9 +37,10 @@
                     },
                     body: JSON.stringify(body)
                 });
+
                 const data = await response.json();
-                return new Response(JSON.stringify(data), {
-                    headers: { 'Content-Type': 'application/json' }
+                return new Response(`${callback}(${JSON.stringify(data)})`, {
+                    headers: { 'Content-Type': 'application/javascript' }
                 });
             } catch (error) {
                 return new Response(JSON.stringify({ error: error.message }), {
