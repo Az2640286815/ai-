@@ -6,29 +6,24 @@
 </head>
 <body>
     <script>
-        // 把这里换成你的火山平台API密钥
+        // 换成你的火山平台API密钥
         const API_KEY = "ark-5be4a38d-5179-4e80-9e4a-fa25741f068f-cbb76";
         const API_URL = "https://ark.cn-beijing.volces.com/api/v3/chat/completions";
 
-        // 处理GET请求，用JSONP绕过限制
+        // 处理POST请求，解决之前的405错误
         self.addEventListener('fetch', (event) => {
             const request = event.request;
-            if (request.method === 'GET' && new URL(request.url).pathname === '/') {
-                event.respondWith(handleGetRequest(request));
+            if (request.method === 'POST' && new URL(request.url).pathname === '/') {
+                event.respondWith(handlePostRequest(request));
             }
         });
 
-        async function handleGetRequest(request) {
+        async function handlePostRequest(request) {
             try {
-                const url = new URL(request.url);
-                const bodyStr = url.searchParams.get('body');
-                const callback = url.searchParams.get('callback');
-
-                if (!bodyStr || !callback) {
-                    return new Response("Missing parameters", { status: 400 });
-                }
-
-                const body = JSON.parse(decodeURIComponent(bodyStr));
+                // 读取FiveM发来的POST请求体
+                const body = await request.json();
+                
+                // 转发给火山引擎
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: {
@@ -38,9 +33,10 @@
                     body: JSON.stringify(body)
                 });
 
+                // 把火山的响应原样返回给FiveM
                 const data = await response.json();
-                return new Response(`${callback}(${JSON.stringify(data)})`, {
-                    headers: { 'Content-Type': 'application/javascript' }
+                return new Response(JSON.stringify(data), {
+                    headers: { 'Content-Type': 'application/json' }
                 });
             } catch (error) {
                 return new Response(JSON.stringify({ error: error.message }), {
